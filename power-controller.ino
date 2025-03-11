@@ -6,6 +6,8 @@
 
 #define MAX_RESPONSE_TIME 10000 // millis to wait for a response
 #define MAX_MESSAGE_SIZE 1000
+#define MESSAGE_CHECK_INTERVAL 10000UL // 10 secs
+#define NETWORK_CHECK_INTERVAL 30000UL // Check network up every 30secs when down
 #define BUFF_SIZE MAX_MESSAGE_SIZE + 6
 uint8_t buff[BUFF_SIZE];
 #define MAX_GET_MSG_SIZE 64    // Max size of dynamic get msg with params
@@ -13,7 +15,7 @@ uint8_t buff[BUFF_SIZE];
 #define CMD_BUFF_SIZE MAX_GET_MSG_SIZE + COMMAND_HEADER_LEN
 char getMessageBuff[MAX_GET_MSG_SIZE];
 
-String GET_STR = "GET /power?s=20&r=";
+String GET_STR = "GET /powerc?s=20&r=";
 String HTTP_STR = " HTTP/0.9";
 int SDA_PIN = 2;
 int SCL_PIN = 0;
@@ -23,12 +25,21 @@ char CONTENT_LENGTH[] = "Content-Length: ";
 char HTTP_09[] = "HTTP/0.9 ";
 byte mac[6];
 
+struct PowerControlMsg
+{
+  int8_t relay;
+  int8_t state;
+};
+
 // Initialize the client library
 WiFiClient client;
 // Initialise Relay
 Multi_Channel_Relay relay;
 
-uint8_t relayState = 0x0;
+bool networkUp = false;
+unsigned long currentMillis = 0;
+unsigned long networkUpTime = 0; // Time at which the network was last up
+unsigned long lastNetworkCheckTime = 0;
 
 void setup() {
   Serial.begin(9600);
@@ -53,30 +64,56 @@ void setup() {
   Serial.println("Starting Wifi:");
   WiFi.begin(SSID_NAME, PASSWORD);
   printWifiStatus();
+  networkUp = true;
   Serial.println("Entering loop");
 }
 
 
 void loop() {
+  currentMillis = millis();
   uint8_t relayStatus = relay.getChannelState();
   Serial.print("Relay Status: ");
   Serial.println(relayStatus);
+  // Check for any messages
+  if (networkUp)
+  {
+    uint16_t respLen = getMessage(relayStatus);
+    if (respLen > 0) {
+      processMessage();
+    }
+  }
+
+  if (!networkUp && (currentMillis - lastNetworkCheckTime) > NETWORK_CHECK_INTERVAL)
+  {
+    lastNetworkCheckTime = currentMillis;
+    uint8_t stat = checkNetworkUp();
+    if (stat == 0)
+    {
+      networkUp = true;
+      networkUpTime = currentMillis;
+    }
+  }
+  delay(MESSAGE_CHECK_INTERVAL);
+}
+
+uint16_t getMessage(uint8_t relayStatus) {
+  uint16_t respLen = 0;
   if (checkNetworkUp()) {
     if (openTCP()) {
       drainWifi();
       Serial.println("Sending HTTP Get"); //Zero first byte == success
       sendHttpRequest(relayStatus);
-      uint16_t respLen = waitForHttpResponse();
+      respLen = waitForHttpResponse();
       if (respLen > 0) {
         Serial.print("Rx message: Length ");
         Serial.println(respLen);
         printBuff(respLen);
       } 
        else {
-         Serial.println("3 No Valid Response");
+         Serial.println("No relay command received");
        }
     } else {
-      // Return server down error message
+      // Server down error message
       Serial.print("2 Server ");
       Serial.print(serverAddr[0]);
       Serial.print(".");
@@ -91,16 +128,31 @@ void loop() {
       Serial.println("EOL");
     }
   } else {
-    // Return wifi error
+    // Wifi error
     Serial.print("1 Wifi Down: ");
     Serial.print(getWifiStatus());
     Serial.println();
-    
   }
-  //For test only - increment relay value
-  relayState++;
-  relay.channelCtrl(relayState);
-  delay(5000);
+  return respLen;
+}
+
+void processMessage() {
+
+  PowerControlMsg *pc = (PowerControlMsg *)&buff[4]; // Start of content
+  if ((pc->state == 1 || pc->state == 0) && (pc->relay >= 0 && pc->relay <= 3)) {
+    //Valid command
+    if (pc->state == 1) {
+      relay.turn_on_channel(pc->relay);
+    } else {
+      relay.turn_off_channel(pc->relay);
+    }
+  } else {
+    //Invalid
+    Serial.print("Invalid command received: Relay no: ");
+    Serial.print(pc->relay);
+    Serial.print(" State: ");
+    Serial.println(pc->state);
+  }
 }
 
 String getWifiStatus() {
@@ -260,13 +312,13 @@ uint16_t waitForHttpResponse() {
             lenStr[endPos - pos] = buff[endPos];
           }
           lenStr[endPos - pos] = '\0'; // null terminate
-         Serial.print("Content Len Str:");
-         Serial.print((uint8_t)lenStr[0], HEX);
-         Serial.print((uint8_t)lenStr[1], HEX);
-         Serial.print((uint8_t)lenStr[2], HEX);
-          contentLen = atoi(&lenStr[0]);
-         Serial.print("Content Len:");
-         Serial.println(contentLen);
+          Serial.print("Content Len Str:");
+          Serial.print((uint8_t)lenStr[0], HEX);
+          Serial.print((uint8_t)lenStr[1], HEX);
+          Serial.print((uint8_t)lenStr[2], HEX);
+            contentLen = atoi(&lenStr[0]);
+          Serial.print("Content Len:");
+          Serial.println(contentLen);
           if (contentLen > 0 && bufPos > endPos+3) {
             endPos += 3; // 0xd, 0xa, 0xd, 0xa at end of content str and before content
             // shift bytes down in buff
