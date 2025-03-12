@@ -13,9 +13,10 @@
 #define BUFF_SIZE MAX_MESSAGE_SIZE + 6
 uint8_t buff[BUFF_SIZE];
 #define MAX_GET_MSG_SIZE 64  // Max size of dynamic get msg with params
-#define COMMAND_HEADER_LEN 3
-#define CMD_BUFF_SIZE MAX_GET_MSG_SIZE + COMMAND_HEADER_LEN
 char getMessageBuff[MAX_GET_MSG_SIZE];
+
+#define RED_LED 1
+#define GREEN_LED 3
 
 #define DEBUG 0
 
@@ -34,6 +35,13 @@ struct PowerControlMsg {
   int8_t state;
 };
 
+enum Colours {
+  OFF,
+  RED,
+  ORANGE,
+  GREEN,
+};
+
 // Initialize the client library
 WiFiClient client;
 // Initialise Relay
@@ -44,11 +52,17 @@ unsigned long currentMillis = 0;
 unsigned long networkUpTime = 0;  // Time at which the network was last up
 unsigned long lastNetworkCheckTime = 0;
 unsigned long messageCheckInterval = MESSAGE_CHECK_INTERVAL;
+Colours currentLEDColour;
 
 void setup() {
-  Serial.begin(9600);
-
-  if (DEBUG) Serial.println("Initialising Wire library for I2C");
+  if (!DEBUG) {
+    pinMode(RED_LED, OUTPUT);
+    pinMode(GREEN_LED, OUTPUT);
+    setLED(ORANGE);
+  } else {
+    Serial.begin(9600);
+    Serial.println("Initialising Wire library for I2C");
+  }
   Wire.begin(SDA_PIN, SCL_PIN);
   // Wire.begin();
 
@@ -69,15 +83,20 @@ void setup() {
   WiFi.begin(SSID_NAME, PASSWORD);
   if (DEBUG) printWifiStatus();
   networkUp = true;
-  Serial.println("Entering loop");
+  if (DEBUG) Serial.println("Entering loop");
+  if (!DEBUG) {
+    setLED(GREEN);
+  }
 }
 
 
 void loop() {
   currentMillis = millis();
   uint8_t relayStatus = relay.getChannelState();
-  Serial.print("Relay Status: ");
-  Serial.println(relayStatus);
+  if (DEBUG) {
+    Serial.print("Relay Status: ");
+    Serial.println(relayStatus);
+  }
   // Check for any messages
   if (networkUp) {
     uint16_t respLen = getMessage(relayStatus);
@@ -92,9 +111,45 @@ void loop() {
     if (stat == 0) {
       networkUp = true;
       networkUpTime = currentMillis;
+      if (!DEBUG) {
+        setLED(ORANGE);
+      }
     }
   }
   delay(messageCheckInterval);
+}
+
+void setLED(Colours colour) {
+  currentLEDColour = colour;
+  switch (colour) {
+    case (OFF):
+      digitalWrite(RED_LED, LOW);
+      digitalWrite(GREEN_LED, LOW);
+      break;
+    case (RED):
+      digitalWrite(RED_LED, HIGH);
+      digitalWrite(GREEN_LED, LOW);
+      break;
+    case (ORANGE):
+      digitalWrite(RED_LED, HIGH);
+      digitalWrite(GREEN_LED, HIGH);
+      break;
+    case (GREEN):
+      digitalWrite(RED_LED, LOW);
+      digitalWrite(GREEN_LED, HIGH);
+      break;
+  }
+}
+
+void flickerLED() {
+  Colours current = currentLEDColour;
+  setLED(OFF);
+  delay(50);
+  setLED(ORANGE);
+  delay(100);
+  setLED(OFF);
+  delay(50);
+  setLED(current);
 }
 
 uint16_t getMessage(uint8_t relayStatus) {
@@ -102,7 +157,11 @@ uint16_t getMessage(uint8_t relayStatus) {
   if (checkNetworkUp()) {
     if (openTCP()) {
       drainWifi();
-      if (DEBUG) Serial.println("Sending HTTP Get");  //Zero first byte == success
+      if (!DEBUG) {
+        flickerLED();
+      } else {
+        Serial.println("Sending HTTP Get");  //Zero first byte == success
+      }
       sendHttpRequest(relayStatus);
       respLen = waitForHttpResponse();
       if (DEBUG) {
@@ -116,38 +175,52 @@ uint16_t getMessage(uint8_t relayStatus) {
       }
     } else {
       // Server down error message
-      Serial.print("2 Server ");
-      Serial.print(serverAddr[0]);
-      Serial.print(".");
-      Serial.print(serverAddr[1]);
-      Serial.print(".");
-      Serial.print(serverAddr[2]);
-      Serial.print(".");
-      Serial.print(serverAddr[3]);
-      Serial.print(":");
-      Serial.print(PORT);
-      Serial.print(" down");
-      Serial.println("EOL");
+      if (!DEBUG) {
+        setLED(RED);
+      } else {
+        Serial.print("2 Server ");
+        Serial.print(serverAddr[0]);
+        Serial.print(".");
+        Serial.print(serverAddr[1]);
+        Serial.print(".");
+        Serial.print(serverAddr[2]);
+        Serial.print(".");
+        Serial.print(serverAddr[3]);
+        Serial.print(":");
+        Serial.print(PORT);
+        Serial.print(" down");
+        Serial.println("EOL");
+      }
     }
   } else {
     // Wifi error
-    Serial.print("1 Wifi Down: ");
-    Serial.print(getWifiStatus());
-    Serial.println();
+    if (!DEBUG) {
+      setLED(RED);
+    } else {
+      Serial.print("1 Wifi Down: ");
+      Serial.print(getWifiStatus());
+      Serial.println();
+    }
   }
   return respLen;
 }
 
 void processMessage() {
-  Serial.print("Rx Msg: ");
-  Serial.println((int)buff[0]);
+  if (DEBUG) {
+    Serial.print("Rx Msg: ");
+    Serial.println((int)buff[0]);
+  }
   if (buff[0] == POWER_COMMAND_MSG) {
     messageCheckInterval = UNDER_COMMAND_CHECK_INTERVAL;
     PowerControlMsg *pc = (PowerControlMsg *)&buff[4];  // Start of content
-    Serial.print("Relay: ");
-    Serial.print(pc->relay);
-    Serial.print(" State: ");
-    Serial.println(pc->state);
+    if (!DEBUG) {
+      setLED(GREEN);
+    } else {
+      Serial.print("Relay: ");
+      Serial.print(pc->relay);
+      Serial.print(" State: ");
+      Serial.println(pc->state);
+    }
     if ((pc->state == 1 || pc->state == 0) && (pc->relay >= 1 && pc->relay <= 4)) {
       //Valid command
       if (pc->state == 1) {
@@ -157,12 +230,19 @@ void processMessage() {
       }
     } else {
       //Invalid
-      Serial.print("Invalid command received: Relay no: ");
-      Serial.print(pc->relay);
-      Serial.print(" State: ");
-      Serial.println(pc->state);
+      if (!DEBUG) {
+        setLED(ORANGE);
+      } else {
+        Serial.print("Invalid command received: Relay no: ");
+        Serial.print(pc->relay);
+        Serial.print(" State: ");
+        Serial.println(pc->state);
+      }
     }
   } else {
+    if (!DEBUG) {
+      setLED(GREEN);
+    } 
     messageCheckInterval = MESSAGE_CHECK_INTERVAL;
   }
 }
@@ -222,9 +302,7 @@ bool checkNetworkUp() {
 
 bool openTCP() {
   bool connected = false;
-  //  debugSerial.println("Open TCP ");
   if (client.connect(serverAddr, PORT)) {
-    //      Serial.println("connected");
     connected = true;
   }
   return connected;
@@ -232,38 +310,12 @@ bool openTCP() {
 
 void sendHttpRequest(uint8_t relayStatus) {
   // Make a HTTP request
-  //  Serial.print("Sending get:");
-  //  for (int i = 0; i<MAX_GET_MSG_SIZE; i++) {
-  //    getMessageBuff[i] = 0;
-  //  }
-  //  snprintf(getMessageBuff, MAX_GET_MSG_SIZE, GET_MESSAGE_TEMPLATE, &commandBuff[COMMAND_HEADER_LEN] );
-  //  String msg = String((char *)getMessageBuff);
-  //  Serial.println(msg);
-  //  Serial.print("Len: ");
-  //  Serial.println(msg.length());
-  //  Serial.println((char *)getMessageBuff);
-  //  uint8_t bytesWritten = client.println("GET /motd HTTP/0.9");
-  //  uint8_t bytesWritten = client.println((char *)getMessageBuff);
-  //  for (int i=0; i<MAX_GET_MSG_SIZE ; i++) {
-  //    client.write(getMessageBuff[i]);
-  //    if ((uint8_t)getMessageBuff[i] == 0) {
-  //      break;
-  //    }
-  //  }
-  //  client.println("GET /motd HTTP/0.9");
   //Wifi library wants a String
   String msg = GET_STR + relayStatus + HTTP_STR;
   client.println(msg);
   client.println();
   client.println();
   if (DEBUG) Serial.println(msg);
-  //  for (int i=0; i<MAX_GET_MSG_SIZE; i++) {
-  //    Serial.print(getMessageBuff[i]);
-  //    if ((uint8_t)getMessageBuff[i] == 0) {
-  //      break;
-  //    }
-  //  }
-  //  Serial.println();
 }
 
 uint16_t waitForHttpResponse() {
@@ -295,7 +347,9 @@ uint16_t waitForHttpResponse() {
             Serial.println((uint8_t)respCode[2], HEX);
           }
           uint16_t resp = atoi(&respCode[0]);
-          if (resp != 200) {
+          if (!DEBUG) {
+            setLED(RED);
+          } else {
             Serial.print("1Server Error Code: ");
             Serial.print(resp);
             Serial.println("EOL");
@@ -351,25 +405,22 @@ uint16_t waitForHttpResponse() {
     waitTime = millis() - start;
   }
   if (waitTime >= MAX_RESPONSE_TIME && !gotMsg) {
-    Serial.print("1Msg Receive timeout:");
-    Serial.print(" Rx bytes:");
-    Serial.print(bufPos);
-    Serial.print(" contentLen:");
-    Serial.print(contentLen);
-    Serial.println("EOL");
-    printBuff(bufPos);
+    if (!DEBUG) {
+      setLED(RED);
+    } else {
+      Serial.print("1Msg Receive timeout:");
+      Serial.print(" Rx bytes:");
+      Serial.print(bufPos);
+      Serial.print(" contentLen:");
+      Serial.print(contentLen);
+      Serial.println("EOL");
+      printBuff(bufPos);
+    }
   }
   return contentLen;
 }
 
 uint16_t findStringInBuff(uint8_t bf[], char str[], uint8_t strLen, uint16_t maxPos) {
-  //  debugSerial.print("Looking for ");
-  //  debugSerial.print(str);
-  //  debugSerial.print(" Size:");
-  //  debugSerial.print(strLen);
-  //  debugSerial.print(" MaxPos:");
-  //  debugSerial.println(maxPos);
-  //  printBuff(maxPos);
   uint16_t startPos = -1;
   for (int i = 0; (i + strLen) < maxPos; i++) {
     if (bf[i] == str[0]) {
@@ -399,15 +450,11 @@ uint16_t receiveClientData(uint16_t startPosition) {
     uint8_t b = client.read();
     buff[pos++] = b;
     len++;
-    // debugSerial.print(b, HEX);
   }
   return len;
 }
 
 void shiftBuffDown(uint8_t bf[], uint16_t buffSize, uint16_t pos, uint16_t maxPos) {
-  //  debugSerial.print("Downshift by ");
-  //  debugSerial.println(pos);
-  //  printBuff(maxPos);
   uint8_t p = pos;
   for (int i = 0; i < maxPos; i++) {
     if (p < buffSize) {
@@ -419,8 +466,6 @@ void shiftBuffDown(uint8_t bf[], uint16_t buffSize, uint16_t pos, uint16_t maxPo
   for (int i = maxPos; i < buffSize; i++) {
     bf[i] = 0;
   }
-  //  debugSerial.println("After:");
-  //  printBuff(maxPos);
 }
 
 void drainWifi() {
@@ -430,10 +475,6 @@ void drainWifi() {
     total += len;
     delay(10);
   }
-  //  if (total > 0) {
-  //    debugSerial.print("Drained: ");
-  //    debugSerial.println(total);
-  //  }
   resetBuffer();
 }
 
