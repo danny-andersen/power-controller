@@ -9,6 +9,7 @@
 #define POWER_COMMAND_MSG 17
 #define MESSAGE_CHECK_INTERVAL 15000UL  // 10 secs
 #define UNDER_COMMAND_CHECK_INTERVAL 1000UL //1 sec interval afer a command is received 
+#define COMMAND_POLL_TIMER 60 //Number of secs to poll control station more frequently for commands (triggered when a command is received)
 #define NETWORK_CHECK_INTERVAL 30000UL  // Check network up every 30secs when down
 #define BUFF_SIZE MAX_MESSAGE_SIZE + 6
 uint8_t buff[BUFF_SIZE];
@@ -17,13 +18,13 @@ char getMessageBuff[MAX_GET_MSG_SIZE];
 
 #define RED_LED 1
 #define GREEN_LED 3
+#define SDA_PIN 2
+#define SCL_PIN 0
 
 #define DEBUG 0
 
 String GET_STR = "GET /powerc?s=20&r=";
 String HTTP_STR = " HTTP/0.9";
-int SDA_PIN = 2;
-int SCL_PIN = 0;
 int RELAY_ADDR = 0x11;
 
 char CONTENT_LENGTH[] = "Content-Length: ";
@@ -51,7 +52,7 @@ bool networkUp = false;
 unsigned long currentMillis = 0;
 unsigned long networkUpTime = 0;  // Time at which the network was last up
 unsigned long lastNetworkCheckTime = 0;
-unsigned long messageCheckInterval = MESSAGE_CHECK_INTERVAL;
+unsigned long commandPollTimer = 0;
 Colours currentLEDColour;
 
 void setup() {
@@ -92,13 +93,13 @@ void setup() {
 
 void loop() {
   currentMillis = millis();
-  uint8_t relayStatus = relay.getChannelState();
-  if (DEBUG) {
-    Serial.print("Relay Status: ");
-    Serial.println(relayStatus);
-  }
   // Check for any messages
   if (networkUp) {
+    uint8_t relayStatus = relay.getChannelState();
+    if (DEBUG) {
+      Serial.print("Relay Status: ");
+      Serial.println(relayStatus);
+    }
     uint16_t respLen = getMessage(relayStatus);
     if (respLen > 0) {
       processMessage();
@@ -116,7 +117,12 @@ void loop() {
       }
     }
   }
-  delay(messageCheckInterval);
+  if (commandPollTimer > 0) {
+    delay(UNDER_COMMAND_CHECK_INTERVAL);
+    commandPollTimer--;
+  } else {
+    delay(MESSAGE_CHECK_INTERVAL);
+  }
 }
 
 void setLED(Colours colour) {
@@ -211,7 +217,7 @@ void processMessage() {
     Serial.println((int)buff[0]);
   }
   if (buff[0] == POWER_COMMAND_MSG) {
-    messageCheckInterval = UNDER_COMMAND_CHECK_INTERVAL;
+    commandPollTimer = COMMAND_POLL_TIMER;
     PowerControlMsg *pc = (PowerControlMsg *)&buff[4];  // Start of content
     if (!DEBUG) {
       setLED(GREEN);
@@ -243,7 +249,6 @@ void processMessage() {
     if (!DEBUG) {
       setLED(GREEN);
     } 
-    messageCheckInterval = MESSAGE_CHECK_INTERVAL;
   }
 }
 
