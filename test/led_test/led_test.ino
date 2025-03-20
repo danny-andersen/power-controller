@@ -9,9 +9,10 @@ enum Colours {
 #define GREEN_LED 3
 
 void setup() {
+  pinMode(LED_BUILTIN, OUTPUT);     // Initialize the LED_BUILTIN pin as an output
   pinMode(RED_LED, OUTPUT);
   pinMode(GREEN_LED, OUTPUT);
-
+  digitalWrite(LED_BUILTIN, LOW);   // Turn the LED on once initialised
 }
 
 void loop() {
