@@ -23,9 +23,11 @@ char getMessageBuff[MAX_GET_MSG_SIZE];
 
 #define DEBUG 0
 
-String GET_STR = "GET /powerc?s=20&r=";
-String HTTP_STR = " HTTP/0.9";
-int RELAY_ADDR = 0x11;
+const char* ssid     = SSID_NAME;
+const char* password = PASSWORD;
+const String GET_STR = "GET /powerc?s=20&r=";
+const String HTTP_STR = " HTTP/0.9";
+const int RELAY_ADDR = 0x11;
 
 char CONTENT_LENGTH[] = "Content-Length: ";
 char HTTP_09[] = "HTTP/0.9 ";
@@ -56,12 +58,13 @@ unsigned long commandPollTimer = 0;
 Colours currentLEDColour;
 
 void setup() {
+  pinMode(LED_BUILTIN, OUTPUT);     // Initialize the LED_BUILTIN pin as an output
   if (!DEBUG) {
     pinMode(RED_LED, OUTPUT);
     pinMode(GREEN_LED, OUTPUT);
     setLED(ORANGE);
   } else {
-    Serial.begin(9600);
+    Serial.begin(115200);
     Serial.println("Initialising Wire library for I2C");
   }
   Wire.begin(SDA_PIN, SCL_PIN);
@@ -77,16 +80,28 @@ void setup() {
     Serial.print(relay.getFirmwareVersion(), HEX);
     Serial.println();
   }
+  digitalWrite(LED_BUILTIN, LOW);   // Turn the built in LED on once Relay initialised
 
   // listNetworks();
   if (DEBUG) Serial.println("Starting Wifi");
-  WiFi.config(clientIP, dns, gateway);
-  WiFi.begin(SSID_NAME, PASSWORD);
-  if (DEBUG) printWifiStatus();
+  WiFi.mode(WIFI_STA);
+  // WiFi.config(clientIP, dns, gateway);
+  WiFi.begin(ssid, password);
+  // while (WiFi.status() != WL_CONNECTED) {
+  //   if (DEBUG) Serial.printf("Connection status: %d\n", WiFi.status());
+  //   delay(500);
+  // }
+
+  if (DEBUG) {
+    printWifiStatus();
+    Serial.print("IP Address: ");
+    Serial.println(WiFi.localIP());
+  }
   networkUp = true;
   if (DEBUG) Serial.println("Entering loop");
   if (!DEBUG) {
     setLED(GREEN);
+    delay(1000); //Let green LED be recoginised
   }
 }
 
@@ -125,27 +140,27 @@ void loop() {
   }
 }
 
-void setLED(Colours colour) {
-  currentLEDColour = colour;
-  switch (colour) {
-    case (OFF):
-      digitalWrite(RED_LED, LOW);
-      digitalWrite(GREEN_LED, LOW);
-      break;
-    case (RED):
-      digitalWrite(RED_LED, HIGH);
-      digitalWrite(GREEN_LED, LOW);
-      break;
-    case (ORANGE):
-      digitalWrite(RED_LED, HIGH);
-      digitalWrite(GREEN_LED, HIGH);
-      break;
-    case (GREEN):
-      digitalWrite(RED_LED, LOW);
-      digitalWrite(GREEN_LED, HIGH);
-      break;
+  void setLED(Colours colour) {
+    currentLEDColour = colour;
+    switch (colour) {
+      case (OFF):
+        digitalWrite(RED_LED, LOW);
+        digitalWrite(GREEN_LED, LOW);
+        break;
+      case (RED):
+        digitalWrite(RED_LED, HIGH);
+        digitalWrite(GREEN_LED, LOW);
+        break;
+      case (ORANGE):
+        digitalWrite(RED_LED, HIGH);
+        digitalWrite(GREEN_LED, HIGH);
+        break;
+      case (GREEN):
+        digitalWrite(RED_LED, LOW);
+        digitalWrite(GREEN_LED, HIGH);
+        break;
+    }
   }
-}
 
 void flickerLED() {
   Colours current = currentLEDColour;
