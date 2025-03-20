@@ -174,7 +174,7 @@
       <cutBetweenHoles>false</cutBetweenHoles>
       <orientation>VERTICAL</orientation>
       <holeSpacing value="0.1" unit="in"/>
-      <point x="4.3" y="1.8"/>
+      <point x="4.2" y="1.8"/>
     </diylc.connectivity.TraceCut>
     <diylc.connectivity.TraceCut>
       <name>Cut12</name>
@@ -626,11 +626,12 @@
       <name>3V3 Buck </name>
       <alpha>100</alpha>
       <value></value>
-      <orientation>_180</orientation>
+      <pinout>REGULATOR_IGO</pinout>
+      <orientation>DEFAULT</orientation>
       <controlPoints>
-        <point x="3.4" y="2.5"/>
-        <point x="3.4" y="2.4"/>
         <point x="3.4" y="2.3"/>
+        <point x="3.4" y="2.4"/>
+        <point x="3.4" y="2.5"/>
       </controlPoints>
       <bodyColor hex="808080"/>
       <borderColor hex="595959"/>
@@ -639,7 +640,7 @@
       <folded>false</folded>
       <tabColor hex="c0c0c0"/>
       <tabBorderColor hex="868686"/>
-      <leadLength value="3.5" unit="mm"/>
+      <leadLength value="5.0" unit="mm"/>
     </diylc.semiconductors.TransistorTO220>
     <diylc.passive.Resistor>
       <name>R2</name>
@@ -647,9 +648,9 @@
       <length value="7.0" unit="mm"/>
       <width value="2.5" unit="mm"/>
       <points>
-        <point x="4.0" y="1.8"/>
+        <point x="4.1" y="1.8"/>
         <point x="4.4" y="1.8"/>
-        <point x="4.2" y="1.8"/>
+        <point x="4.25" y="1.8"/>
       </points>
       <bodyColor hex="82cffd"/>
       <borderColor hex="5b90b1"/>
@@ -660,6 +661,7 @@
       <labelOriantation>Directional</labelOriantation>
       <moveLabel>false</moveLabel>
       <hideShortLeads>false</hideShortLeads>
+      <value value="330.0" unit="R"/>
       <power>HALF</power>
       <colorCode>_5_BAND</colorCode>
       <shape>Standard</shape>
@@ -683,6 +685,7 @@
       <labelOriantation>Directional</labelOriantation>
       <moveLabel>false</moveLabel>
       <hideShortLeads>false</hideShortLeads>
+      <value value="1.0" unit="K"/>
       <power>HALF</power>
       <colorCode>_5_BAND</colorCode>
       <shape>Standard</shape>
@@ -706,6 +709,88 @@
       <labelColor hex="15122f"/>
       <indentColor hex="595959"/>
     </diylc.semiconductors.SIL__IC>
+    <diylc.passive.RadialElectrolytic>
+      <name>C1</name>
+      <alpha>127</alpha>
+      <length value="0.15" unit="in"/>
+      <points>
+        <point x="3.1" y="2.4"/>
+        <point x="3.1" y="2.5"/>
+        <point x="3.1" y="2.45"/>
+      </points>
+      <bodyColor hex="6b6dce"/>
+      <borderColor hex="4a4c90"/>
+      <labelColor hex="ffffff"/>
+      <leadColor hex="cccccc"/>
+      <display>NAME</display>
+      <flipStanding>false</flipStanding>
+      <labelOriantation>Directional</labelOriantation>
+      <moveLabel>false</moveLabel>
+      <hideShortLeads>false</hideShortLeads>
+      <pinSpacing value="0.1" unit="in"/>
+      <value value="10.0" unit="uF"/>
+      <voltage>_63V</voltage>
+      <voltageNew value="25.0" unit="V"/>
+      <markerColor hex="8cacea"/>
+      <tickColor hex="ffffff"/>
+      <polarized>true</polarized>
+      <folded>false</folded>
+      <height value="0.4" unit="in"/>
+      <invert>false</invert>
+    </diylc.passive.RadialElectrolytic>
+    <diylc.passive.RadialElectrolytic>
+      <name>C2</name>
+      <alpha>127</alpha>
+      <length value="0.1" unit="in"/>
+      <points>
+        <point x="3.3" y="2.4"/>
+        <point x="3.3" y="2.5"/>
+        <point x="3.3" y="2.45"/>
+      </points>
+      <bodyColor hex="6b6dce"/>
+      <borderColor hex="4a4c90"/>
+      <labelColor hex="ffffff"/>
+      <leadColor hex="cccccc"/>
+      <display>NAME</display>
+      <flipStanding>false</flipStanding>
+      <labelOriantation>Directional</labelOriantation>
+      <moveLabel>false</moveLabel>
+      <hideShortLeads>false</hideShortLeads>
+      <pinSpacing value="0.1" unit="in"/>
+      <value value="0.1" unit="uF"/>
+      <voltage>_63V</voltage>
+      <voltageNew value="50.0" unit="V"/>
+      <markerColor hex="8cacea"/>
+      <tickColor hex="ffffff"/>
+      <polarized>true</polarized>
+      <folded>false</folded>
+      <height value="0.4" unit="in"/>
+      <invert>false</invert>
+    </diylc.passive.RadialElectrolytic>
+    <diylc.passive.Resistor>
+      <name>R3</name>
+      <alpha>127</alpha>
+      <length value="7.0" unit="mm"/>
+      <width value="2.5" unit="mm"/>
+      <points>
+        <point x="4.0" y="1.5"/>
+        <point x="4.0" y="1.8"/>
+        <point x="4.0" y="1.65"/>
+      </points>
+      <bodyColor hex="82cffd"/>
+      <borderColor hex="5b90b1"/>
+      <labelColor hex="000000"/>
+      <leadColor hex="cccccc"/>
+      <display>NAME</display>
+      <flipStanding>false</flipStanding>
+      <labelOriantation>Directional</labelOriantation>
+      <moveLabel>false</moveLabel>
+      <hideShortLeads>false</hideShortLeads>
+      <value value="5.2" unit="K"/>
+      <power>HALF</power>
+      <colorCode>_5_BAND</colorCode>
+      <shape>Standard</shape>
+    </diylc.passive.Resistor>
     <diylc.misc.Label>
       <name>LAB1</name>
       <point x="4.7" y="2.5"/>
@@ -966,42 +1051,42 @@
   <groups>
     <set>
       <diylc.misc.Label reference="../../../components/diylc.misc.Label[12]"/>
-      <diylc.electromechanical.PinHeader reference="../../../components/diylc.electromechanical.PinHeader[3]"/>
-      <diylc.misc.Label reference="../../../components/diylc.misc.Label[14]"/>
-      <diylc.connectivity.TraceCut reference="../../../components/diylc.connectivity.TraceCut[8]"/>
-      <diylc.electromechanical.PinHeader reference="../../../components/diylc.electromechanical.PinHeader[4]"/>
       <diylc.misc.Label reference="../../../components/diylc.misc.Label[18]"/>
+      <diylc.electromechanical.PinHeader reference="../../../components/diylc.electromechanical.PinHeader[4]"/>
       <diylc.misc.Label reference="../../../components/diylc.misc.Label[16]"/>
+      <diylc.connectivity.TraceCut reference="../../../components/diylc.connectivity.TraceCut[9]"/>
+      <diylc.connectivity.TraceCut reference="../../../components/diylc.connectivity.TraceCut[7]"/>
+      <diylc.electromechanical.PinHeader reference="../../../components/diylc.electromechanical.PinHeader[3]"/>
+      <diylc.connectivity.TraceCut reference="../../../components/diylc.connectivity.TraceCut[5]"/>
+      <diylc.misc.Label reference="../../../components/diylc.misc.Label[17]"/>
+      <diylc.connectivity.TraceCut reference="../../../components/diylc.connectivity.TraceCut[6]"/>
+      <diylc.connectivity.TraceCut reference="../../../components/diylc.connectivity.TraceCut[8]"/>
       <diylc.misc.Label reference="../../../components/diylc.misc.Label[15]"/>
       <diylc.misc.Label reference="../../../components/diylc.misc.Label[11]"/>
       <diylc.misc.Label reference="../../../components/diylc.misc.Label[13]"/>
-      <diylc.connectivity.TraceCut reference="../../../components/diylc.connectivity.TraceCut[6]"/>
-      <diylc.misc.Label reference="../../../components/diylc.misc.Label[17]"/>
-      <diylc.connectivity.TraceCut reference="../../../components/diylc.connectivity.TraceCut[9]"/>
-      <diylc.connectivity.TraceCut reference="../../../components/diylc.connectivity.TraceCut[5]"/>
-      <diylc.connectivity.TraceCut reference="../../../components/diylc.connectivity.TraceCut[7]"/>
+      <diylc.misc.Label reference="../../../components/diylc.misc.Label[14]"/>
     </set>
     <set>
-      <diylc.misc.Label reference="../../../components/diylc.misc.Label"/>
-      <diylc.electromechanical.PinHeader reference="../../../components/diylc.electromechanical.PinHeader[5]"/>
-      <diylc.misc.Label reference="../../../components/diylc.misc.Label[4]"/>
       <diylc.misc.Label reference="../../../components/diylc.misc.Label[3]"/>
       <diylc.misc.Label reference="../../../components/diylc.misc.Label[2]"/>
+      <diylc.electromechanical.PinHeader reference="../../../components/diylc.electromechanical.PinHeader[5]"/>
+      <diylc.misc.Label reference="../../../components/diylc.misc.Label"/>
+      <diylc.misc.Label reference="../../../components/diylc.misc.Label[4]"/>
     </set>
     <set>
-      <diylc.connectivity.TraceCut reference="../../../components/diylc.connectivity.TraceCut[3]"/>
+      <diylc.misc.Label reference="../../../components/diylc.misc.Label[5]"/>
       <diylc.misc.Label reference="../../../components/diylc.misc.Label[8]"/>
-      <diylc.misc.Label reference="../../../components/diylc.misc.Label[9]"/>
-      <diylc.connectivity.Jumper reference="../../../components/diylc.connectivity.Jumper"/>
-      <diylc.connectivity.TraceCut reference="../../../components/diylc.connectivity.TraceCut"/>
-      <diylc.electromechanical.PinHeader reference="../../../components/diylc.electromechanical.PinHeader"/>
+      <diylc.misc.Label reference="../../../components/diylc.misc.Label[10]"/>
       <diylc.misc.Label reference="../../../components/diylc.misc.Label[6]"/>
       <diylc.electromechanical.PinHeader reference="../../../components/diylc.electromechanical.PinHeader[2]"/>
-      <diylc.connectivity.TraceCut reference="../../../components/diylc.connectivity.TraceCut[2]"/>
-      <diylc.misc.Label reference="../../../components/diylc.misc.Label[10]"/>
-      <diylc.misc.Label reference="../../../components/diylc.misc.Label[7]"/>
+      <diylc.misc.Label reference="../../../components/diylc.misc.Label[9]"/>
+      <diylc.connectivity.Jumper reference="../../../components/diylc.connectivity.Jumper"/>
+      <diylc.connectivity.TraceCut reference="../../../components/diylc.connectivity.TraceCut[3]"/>
       <diylc.connectivity.TraceCut reference="../../../components/diylc.connectivity.TraceCut[4]"/>
-      <diylc.misc.Label reference="../../../components/diylc.misc.Label[5]"/>
+      <diylc.misc.Label reference="../../../components/diylc.misc.Label[7]"/>
+      <diylc.electromechanical.PinHeader reference="../../../components/diylc.electromechanical.PinHeader"/>
+      <diylc.connectivity.TraceCut reference="../../../components/diylc.connectivity.TraceCut"/>
+      <diylc.connectivity.TraceCut reference="../../../components/diylc.connectivity.TraceCut[2]"/>
     </set>
   </groups>
   <lockedLayers/>
