@@ -7,10 +7,10 @@
 #define MAX_RESPONSE_TIME 10000  // millis to wait for a response
 #define MAX_MESSAGE_SIZE 1000
 #define POWER_COMMAND_MSG 17
-#define MESSAGE_CHECK_INTERVAL 15000UL  // 10 secs
+#define MESSAGE_CHECK_INTERVAL 15000UL  // 15 secs
 #define UNDER_COMMAND_CHECK_INTERVAL 1000UL //1 sec interval afer a command is received 
 #define COMMAND_POLL_TIMER 60 //Number of secs to poll control station more frequently for commands (triggered when a command is received)
-#define NETWORK_CHECK_INTERVAL 30000UL  // Check network up every 30secs when down
+#define NETWORK_CHECK_INTERVAL 5000UL  // Check network up every 5secs when down
 #define BUFF_SIZE MAX_MESSAGE_SIZE + 6
 uint8_t buff[BUFF_SIZE];
 #define MAX_GET_MSG_SIZE 64  // Max size of dynamic get msg with params
@@ -31,7 +31,6 @@ const int RELAY_ADDR = 0x11;
 
 char CONTENT_LENGTH[] = "Content-Length: ";
 char HTTP_09[] = "HTTP/0.9 ";
-byte mac[6];
 
 struct PowerControlMsg {
   int8_t relay;
@@ -51,14 +50,15 @@ WiFiClient client;
 Multi_Channel_Relay relay;
 
 bool networkUp = false;
-unsigned long currentMillis = 0;
-unsigned long networkUpTime = 0;  // Time at which the network was last up
-unsigned long lastNetworkCheckTime = 0;
 unsigned long commandPollTimer = 0;
 Colours currentLEDColour;
 
 void setup() {
   pinMode(LED_BUILTIN, OUTPUT);     // Initialize the LED_BUILTIN pin as an output
+  digitalWrite(LED_BUILTIN, LOW);   // Turn the built in LED to show ESP01 has booted
+  //Note: Initialising Wire() will turn off the Builtin LED as it is on GPIO2, which becomes the SDA pin 
+  //So delay 500ms to let built in LED flash on briefly
+  delay(500);
   if (!DEBUG) {
     pinMode(RED_LED, OUTPUT);
     pinMode(GREEN_LED, OUTPUT);
@@ -80,12 +80,11 @@ void setup() {
     Serial.print(relay.getFirmwareVersion(), HEX);
     Serial.println();
   }
-  digitalWrite(LED_BUILTIN, LOW);   // Turn the built in LED on once Relay initialised
 
   // listNetworks();
   if (DEBUG) Serial.println("Starting Wifi");
   WiFi.mode(WIFI_STA);
-  // WiFi.config(clientIP, dns, gateway);
+  WiFi.config(clientIP, dns, gateway);
   WiFi.begin(ssid, password);
   // while (WiFi.status() != WL_CONNECTED) {
   //   if (DEBUG) Serial.printf("Connection status: %d\n", WiFi.status());
@@ -107,9 +106,8 @@ void setup() {
 
 
 void loop() {
-  currentMillis = millis();
   // Check for any messages
-  if (networkUp) {
+  if (checkNetworkUp()) {
     uint8_t relayStatus = relay.getChannelState();
     if (DEBUG) {
       Serial.print("Relay Status: ");
@@ -120,23 +118,15 @@ void loop() {
       processMessage();
     }
   }
-
-  if (!networkUp && (currentMillis - lastNetworkCheckTime) > NETWORK_CHECK_INTERVAL) {
-    lastNetworkCheckTime = currentMillis;
-    uint8_t stat = checkNetworkUp();
-    if (stat == 0) {
-      networkUp = true;
-      networkUpTime = currentMillis;
-      if (!DEBUG) {
-        setLED(ORANGE);
-      }
-    }
-  }
   if (commandPollTimer > 0) {
     delay(UNDER_COMMAND_CHECK_INTERVAL);
     commandPollTimer--;
-  } else {
+  } else if (networkUp) {
+    //Network up and no message - poll at msg check interval
     delay(MESSAGE_CHECK_INTERVAL);
+  } else {
+    //Network down - poll at network check interval
+    delay(NETWORK_CHECK_INTERVAL);
   }
 }
 
@@ -175,68 +165,58 @@ void flickerLED() {
 
 uint16_t getMessage(uint8_t relayStatus) {
   uint16_t respLen = 0;
-  if (checkNetworkUp()) {
-    if (openTCP()) {
-      drainWifi();
-      if (!DEBUG) {
-        flickerLED();
-      } else {
-        Serial.println("Sending HTTP Get");  //Zero first byte == success
-      }
-      sendHttpRequest(relayStatus);
-      respLen = waitForHttpResponse();
-      if (DEBUG) {
-        if (respLen > 0) {
-          Serial.print("Rx message: Length ");
-          Serial.println(respLen);
-          printBuff(respLen);
-        } else {
-          Serial.println("No relay command received");
-        }
-      }
+  if (openTCP()) {
+    drainWifi();
+    if (!DEBUG) {
+      flickerLED();
     } else {
-      // Server down error message
-      if (!DEBUG) {
-        setLED(RED);
+      Serial.println("Sending HTTP Get");  //Zero first byte == success
+    }
+    sendHttpRequest(relayStatus);
+    respLen = waitForHttpResponse();
+    if (DEBUG) {
+      if (respLen > 0) {
+        Serial.print("Rx message: Length ");
+        Serial.println(respLen);
+        printBuff(respLen);
       } else {
-        Serial.print("2 Server ");
-        Serial.print(serverAddr[0]);
-        Serial.print(".");
-        Serial.print(serverAddr[1]);
-        Serial.print(".");
-        Serial.print(serverAddr[2]);
-        Serial.print(".");
-        Serial.print(serverAddr[3]);
-        Serial.print(":");
-        Serial.print(PORT);
-        Serial.print(" down");
-        Serial.println("EOL");
+        Serial.println("No relay command received");
       }
     }
   } else {
-    // Wifi error
+    // Server down error message
     if (!DEBUG) {
-      setLED(RED);
+      setLED(ORANGE);
     } else {
-      Serial.print("1 Wifi Down: ");
-      Serial.print(getWifiStatus());
-      Serial.println();
+      Serial.print("2 Server ");
+      Serial.print(serverAddr[0]);
+      Serial.print(".");
+      Serial.print(serverAddr[1]);
+      Serial.print(".");
+      Serial.print(serverAddr[2]);
+      Serial.print(".");
+      Serial.print(serverAddr[3]);
+      Serial.print(":");
+      Serial.print(PORT);
+      Serial.print(" down");
+      Serial.println("EOL");
     }
   }
   return respLen;
 }
 
 void processMessage() {
-  if (DEBUG) {
+  if (!DEBUG) {
+    //Network and server up and got a valid response
+    setLED(GREEN);
+  } else {
     Serial.print("Rx Msg: ");
     Serial.println((int)buff[0]);
   }
   if (buff[0] == POWER_COMMAND_MSG) {
     commandPollTimer = COMMAND_POLL_TIMER;
     PowerControlMsg *pc = (PowerControlMsg *)&buff[4];  // Start of content
-    if (!DEBUG) {
-      setLED(GREEN);
-    } else {
+    if (DEBUG) {
       Serial.print("Relay: ");
       Serial.print(pc->relay);
       Serial.print(" State: ");
@@ -260,10 +240,6 @@ void processMessage() {
         Serial.println(pc->state);
       }
     }
-  } else {
-    if (!DEBUG) {
-      setLED(GREEN);
-    } 
   }
 }
 
@@ -300,6 +276,7 @@ void printWifiStatus() {
   IPAddress ip = WiFi.localIP();
   Serial.print(" IP:");
   Serial.print(ip);
+  byte mac[6];
   WiFi.macAddress(mac);
   Serial.print(" MAC: ");
   Serial.print(mac[0], HEX);
@@ -317,7 +294,18 @@ void printWifiStatus() {
 
 bool checkNetworkUp() {
   // Check network up
-  return WiFi.status() == WL_CONNECTED;
+  networkUp = (WiFi.status() == WL_CONNECTED);
+  if (!networkUp) {
+    // Wifi error
+    if (!DEBUG) {
+      setLED(RED);
+    } else {
+      Serial.print("1 Wifi Down: ");
+      Serial.print(getWifiStatus());
+      Serial.println();
+    }
+  }
+  return networkUp;
 }
 
 bool openTCP() {
@@ -368,7 +356,7 @@ uint16_t waitForHttpResponse() {
           }
           uint16_t resp = atoi(&respCode[0]);
           if (!DEBUG) {
-            setLED(RED);
+            setLED(ORANGE);
           } else {
             Serial.print("1Server Error Code: ");
             Serial.print(resp);
@@ -426,7 +414,7 @@ uint16_t waitForHttpResponse() {
   }
   if (waitTime >= MAX_RESPONSE_TIME && !gotMsg) {
     if (!DEBUG) {
-      setLED(RED);
+      setLED(ORANGE);
     } else {
       Serial.print("1Msg Receive timeout:");
       Serial.print(" Rx bytes:");
