@@ -16,8 +16,8 @@ uint8_t buff[BUFF_SIZE];
 #define MAX_GET_MSG_SIZE 64  // Max size of dynamic get msg with params
 char getMessageBuff[MAX_GET_MSG_SIZE];
 
-#define RED_LED 1
-#define GREEN_LED 3
+#define RELAY5 1
+#define RELAY6 3
 #define SDA_PIN 2
 #define SCL_PIN 0
 
@@ -33,8 +33,8 @@ char CONTENT_LENGTH[] = "Content-Length: ";
 char HTTP_09[] = "HTTP/0.9 ";
 
 struct PowerControlMsg {
-  int8_t relay;
-  int8_t state;
+  uint8_t relay;
+  uint8_t state;
 };
 
 enum Colours {
@@ -47,37 +47,38 @@ enum Colours {
 // Initialize the client library
 WiFiClient client;
 // Initialise Relay
-Multi_Channel_Relay relay;
+Multi_Channel_Relay relay_i2c;
 
 bool networkUp = false;
 unsigned long commandPollTimer = 0;
 Colours currentLEDColour;
+uint8_t relayStatus = 0;  //bit 0 == relay 1, bit 6 == relay 6
 
 void setup() {
+  if (!DEBUG) {
+    //We are using RELAY5 and RELAY6 on the pins shared with TX and RX on the debug/USB port.
+    pinMode(RELAY5, OUTPUT);
+    digitalWrite(RELAY5, HIGH);   // Make sure relay is off
+    pinMode(RELAY6, OUTPUT);
+    digitalWrite(RELAY6, HIGH);   // Make sure relay is off
+  } else {
+    Serial.begin(115200);
+  }
   pinMode(LED_BUILTIN, OUTPUT);     // Initialize the LED_BUILTIN pin as an output
   digitalWrite(LED_BUILTIN, LOW);   // Turn the built in LED to show ESP01 has booted
   //Note: Initialising Wire() will turn off the Builtin LED as it is on GPIO2, which becomes the SDA pin 
   //So delay 500ms to let built in LED flash on briefly
   delay(500);
-  if (!DEBUG) {
-    pinMode(RED_LED, OUTPUT);
-    pinMode(GREEN_LED, OUTPUT);
-    setLED(ORANGE);
-  } else {
-    Serial.begin(115200);
-    Serial.println("Initialising Wire library for I2C");
-  }
+  if (DEBUG) Serial.println("Initialising Wire library for I2C");
   Wire.begin(SDA_PIN, SCL_PIN);
-  // Wire.begin();
-
   // Set Relay I2C address and start relay
   if (DEBUG) Serial.println("Initialising Relay library");
-  relay.begin(RELAY_ADDR);
+  relay_i2c.begin(RELAY_ADDR);
   /* Read firmware  version */
   if (DEBUG) {
     Serial.print("Relay firmware version: ");
     Serial.print("0x");
-    Serial.print(relay.getFirmwareVersion(), HEX);
+    Serial.print(relay_i2c.getFirmwareVersion(), HEX);
     Serial.println();
   }
 
@@ -86,11 +87,7 @@ void setup() {
   WiFi.mode(WIFI_STA);
   WiFi.config(clientIP, dns, gateway);
   WiFi.begin(ssid, password);
-  // while (WiFi.status() != WL_CONNECTED) {
-  //   if (DEBUG) Serial.printf("Connection status: %d\n", WiFi.status());
-  //   delay(500);
-  // }
-
+  delay(1000);
   if (DEBUG) {
     printWifiStatus();
     Serial.print("IP Address: ");
@@ -98,21 +95,12 @@ void setup() {
   }
   networkUp = true;
   if (DEBUG) Serial.println("Entering loop");
-  if (!DEBUG) {
-    setLED(GREEN);
-    delay(1000); //Let green LED be recoginised
-  }
 }
 
 
 void loop() {
   // Check for any messages
   if (checkNetworkUp()) {
-    uint8_t relayStatus = relay.getChannelState();
-    if (DEBUG) {
-      Serial.print("Relay Status: ");
-      Serial.println(relayStatus);
-    }
     uint16_t respLen = getMessage(relayStatus);
     if (respLen > 0) {
       processMessage();
@@ -130,46 +118,44 @@ void loop() {
   }
 }
 
-  void setLED(Colours colour) {
-    currentLEDColour = colour;
-    switch (colour) {
-      case (OFF):
-        digitalWrite(RED_LED, LOW);
-        digitalWrite(GREEN_LED, LOW);
-        break;
-      case (RED):
-        digitalWrite(RED_LED, HIGH);
-        digitalWrite(GREEN_LED, LOW);
-        break;
-      case (ORANGE):
-        digitalWrite(RED_LED, HIGH);
-        digitalWrite(GREEN_LED, HIGH);
-        break;
-      case (GREEN):
-        digitalWrite(RED_LED, LOW);
-        digitalWrite(GREEN_LED, HIGH);
-        break;
-    }
-  }
+//   void setLED(Colours colour) {
+//     currentLEDColour = colour;
+//     switch (colour) {
+//       case (OFF):
+//         digitalWrite(RED_LED, LOW);
+//         digitalWrite(GREEN_LED, LOW);
+//         break;
+//       case (RED):
+//         digitalWrite(RED_LED, HIGH);
+//         digitalWrite(GREEN_LED, LOW);
+//         break;
+//       case (ORANGE):
+//         digitalWrite(RED_LED, HIGH);
+//         digitalWrite(GREEN_LED, HIGH);
+//         break;
+//       case (GREEN):
+//         digitalWrite(RED_LED, LOW);
+//         digitalWrite(GREEN_LED, HIGH);
+//         break;
+//     }
+//   }
 
-void flickerLED() {
-  Colours current = currentLEDColour;
-  setLED(OFF);
-  delay(50);
-  setLED(ORANGE);
-  delay(100);
-  setLED(OFF);
-  delay(50);
-  setLED(current);
-}
+// void flickerLED() {
+//   Colours current = currentLEDColour;
+//   setLED(OFF);
+//   delay(50);
+//   setLED(ORANGE);
+//   delay(100);
+//   setLED(OFF);
+//   delay(50);
+//   setLED(current);
+// }
 
 uint16_t getMessage(uint8_t relayStatus) {
   uint16_t respLen = 0;
   if (openTCP()) {
     drainWifi();
-    if (!DEBUG) {
-      flickerLED();
-    } else {
+    if (DEBUG) {
       Serial.println("Sending HTTP Get");  //Zero first byte == success
     }
     sendHttpRequest(relayStatus);
@@ -185,9 +171,7 @@ uint16_t getMessage(uint8_t relayStatus) {
     }
   } else {
     // Server down error message
-    if (!DEBUG) {
-      setLED(ORANGE);
-    } else {
+    if (DEBUG) {
       Serial.print("2 Server ");
       Serial.print(serverAddr[0]);
       Serial.print(".");
@@ -206,13 +190,11 @@ uint16_t getMessage(uint8_t relayStatus) {
 }
 
 void processMessage() {
-  if (!DEBUG) {
-    //Network and server up and got a valid response
-    setLED(GREEN);
-  } else {
+  if (DEBUG) {
     Serial.print("Rx Msg: ");
     Serial.println((int)buff[0]);
   }
+  //TODO Flicker built in LED
   if (buff[0] == POWER_COMMAND_MSG) {
     commandPollTimer = COMMAND_POLL_TIMER;
     PowerControlMsg *pc = (PowerControlMsg *)&buff[4];  // Start of content
@@ -222,23 +204,62 @@ void processMessage() {
       Serial.print(" State: ");
       Serial.println(pc->state);
     }
-    if ((pc->state == 1 || pc->state == 0) && (pc->relay >= 1 && pc->relay <= 4)) {
+    if ((pc->state == 1 || pc->state == 0) && (pc->relay >= 1 && pc->relay <= 6)) {
       //Valid command
-      if (pc->state == 1) {
-        relay.turn_on_channel(pc->relay);
+      if (pc->relay <= 4) {
+        //Relays on ICD bus
+        if (pc->state == 1) {
+          relay_i2c.turn_on_channel(pc->relay);
+        } else {
+          relay_i2c.turn_off_channel(pc->relay);
+        }
+        relayStatus = relay_i2c.getChannelState() | (relayStatus & 0xF0);
+        if (DEBUG) {
+          Serial.print("Relay Status: ");
+          Serial.println(relayStatus);
+        }
       } else {
-        relay.turn_off_channel(pc->relay);
+        //Relay is directly wired
+        switchRelay(pc->relay, pc->state);
       }
     } else {
       //Invalid
-      if (!DEBUG) {
-        setLED(ORANGE);
-      } else {
+      if (DEBUG) {
         Serial.print("Invalid command received: Relay no: ");
         Serial.print(pc->relay);
         Serial.print(" State: ");
         Serial.println(pc->state);
       }
+    }
+  }
+}
+
+void switchRelay(uint8_t relayNum, uint8_t state) {
+  if (relayNum == 5) {
+    if (state == 1) {
+      //Low state to drive on
+      if (!DEBUG) {
+        digitalWrite(RELAY5, LOW);
+      }
+      relayStatus = relayStatus | 0x10;  
+    } else {
+      if (!DEBUG) {
+        digitalWrite(RELAY5, HIGH);
+      }
+      relayStatus = relayStatus & 0xEF;  
+    }
+  } else if (relayNum == 6) {
+    if (state == 1) {
+      //Low state to drive on
+      if (!DEBUG) {
+        digitalWrite(RELAY6, LOW);
+      }
+      relayStatus = relayStatus | 0x20;  
+    } else {
+      if (!DEBUG) {
+        digitalWrite(RELAY6, HIGH);
+      }
+      relayStatus = relayStatus & 0xDF;  
     }
   }
 }
@@ -297,9 +318,7 @@ bool checkNetworkUp() {
   networkUp = (WiFi.status() == WL_CONNECTED);
   if (!networkUp) {
     // Wifi error
-    if (!DEBUG) {
-      setLED(RED);
-    } else {
+    if (DEBUG) {
       Serial.print("1 Wifi Down: ");
       Serial.print(getWifiStatus());
       Serial.println();
@@ -355,14 +374,14 @@ uint16_t waitForHttpResponse() {
             Serial.println((uint8_t)respCode[2], HEX);
           }
           uint16_t resp = atoi(&respCode[0]);
-          if (!DEBUG) {
-            setLED(ORANGE);
-          } else {
-            Serial.print("1Server Error Code: ");
-            Serial.print(resp);
-            Serial.println("EOL");
-            drainWifi();
-            break;
+          if (resp != 200) {
+            if (DEBUG) {
+              Serial.print("1Server Error Code: ");
+              Serial.print(resp);
+              Serial.println("EOL");
+              drainWifi();
+              break;
+            }
           }
           gotRespCode = true;
         }
@@ -413,9 +432,7 @@ uint16_t waitForHttpResponse() {
     waitTime = millis() - start;
   }
   if (waitTime >= MAX_RESPONSE_TIME && !gotMsg) {
-    if (!DEBUG) {
-      setLED(ORANGE);
-    } else {
+    if (DEBUG) {
       Serial.print("1Msg Receive timeout:");
       Serial.print(" Rx bytes:");
       Serial.print(bufPos);

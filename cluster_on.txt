@@ -1,5 +1,14 @@
+# Turn switch on
+6=1
+# Turn fan power on
+5=1
+# Wait 5 seconds
+D=5
+# Turn pi4desktop on
 1=1
-D=15
+# Wait 20 seconds for pi4desktop to start up
+D=20
+# Turn on nodes 0 - 2
 2=1
 3=1
 4=1
